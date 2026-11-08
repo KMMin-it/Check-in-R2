@@ -1,0 +1,474 @@
+<!DOCTYPE html>\n<!-- GitHub Pages-ready frontend. Configure API_BASE_URL before using API features. -->
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Check - ระบบบันทึกเวลา (ระบบกลาง)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- Navbar -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-lg font-bold">⏱️ Attendance Check (Online)</h1>
+            <div id="user-info" class="hidden flex items-center gap-3 text-sm">
+                <span id="display-username" class="bg-indigo-700 px-3 py-1 rounded-full font-medium"></span>
+                <button onclick="logout()" class="bg-rose-500 hover:bg-rose-600 px-3 py-1 rounded transition text-white">ออกจากระบบ</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-4xl mx-auto w-full p-4 flex-grow">
+
+        <!-- Login Section -->
+        <section id="login-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-sm mx-auto mt-10">
+            <h2 class="text-xl font-bold text-center mb-6 text-slate-900">เข้าสู่ระบบ</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-600">Username</label>
+                    <input type="text" id="login-user" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="ผู้ใช้งาน">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-slate-600">Password</label>
+                    <input type="password" id="login-pass" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="รหัสผ่าน">
+                </div>
+                <button onclick="login()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-medium transition shadow-sm">เข้าสู่ระบบ</button>
+            </div>
+        </section>
+
+        <!-- Employee Dashboard -->
+        <section id="employee-dashboard" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-lg font-bold mb-4 text-slate-800">📌 บันทึกเวลา เข้า–ออกงาน</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1 text-slate-600">สาขา</label>
+                        <select id="branch-code" class="w-full px-3 py-2 border rounded-lg"><option value="">กำลังโหลดสาขา...</option></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1 text-slate-600">สถานะปัจจุบัน</label>
+                        <div id="current-status" class="px-3 py-2 bg-slate-100 rounded-lg text-sm font-semibold text-slate-600">ยังไม่ได้ลงเวลาวันนี้</div>
+                    </div>
+                </div>
+
+                <!-- Camera Preview -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-1 text-slate-600">ถ่ายรูปยืนยันตัวตน</label>
+                    <div class="relative w-full max-w-xs mx-auto bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center">
+                        <video id="camera-preview" autoplay muted playsinline class="w-full h-full object-cover"></video>
+                        <canvas id="snapshot-canvas" class="hidden"></canvas>
+                        <div id="camera-placeholder" class="absolute text-white text-xs">กำลังเปิดกล้อง...</div>
+                    </div>
+                </div>
+
+                <div class="text-center mb-4"><button id="switch-camera" onclick="switchCamera()" class="border border-slate-300 px-4 py-2 rounded-lg text-sm disabled:opacity-50">สลับกล้องหน้า–หลัง</button><p id="camera-message" class="text-sm text-slate-500 mt-2" role="status"></p></div>
+                <div class="flex gap-3 justify-center">
+                    <button id="check-in" onclick="checkIn()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-sm transition">🟢 Check In (เข้างาน)</button>
+                    <button id="check-out" onclick="checkOut()" class="bg-amber-600 hover:bg-amber-700 text-white px-6 py-2.5 rounded-xl font-medium shadow-sm transition">🔴 Check Out (ออกงาน)</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Dashboard -->
+        <section id="admin-dashboard" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-slate-800">🛠️ แผงควบคุมผู้ดูแลระบบ (Admin Panel)</h2>
+                    <button onclick="exportCSV()" class="bg-slate-800 hover:bg-slate-900 text-white text-sm px-4 py-2 rounded-lg transition">📥 Export CSV</button>
+                </div>
+
+                <!-- Tabs -->
+                <div class="flex overflow-x-auto border-b mb-4 text-sm font-medium">
+                    <button onclick="switchAdminTab('logs')" id="tab-logs" class="pb-2 px-4 border-b-2 border-indigo-600 text-indigo-600">ประวัติการลงเวลา</button>
+                    <button onclick="switchAdminTab('employees')" id="tab-employees" class="pb-2 px-4 text-slate-500">จัดการพนักงาน</button>
+                    <button onclick="switchAdminTab('branches')" id="tab-branches" class="pb-2 px-4 text-slate-500">จัดการสาขา</button>
+                </div>
+
+                <div class="flex items-center gap-3 mb-3"><button onclick="loadAdminLogs()" class="border px-3 py-1 rounded-lg text-sm">รีเฟรชรายการ</button><span id="logs-status" role="status" class="text-sm text-slate-500"></span></div>
+                <!-- Logs Tab -->
+                <div id="admin-logs-view" class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-100 text-slate-600">
+                            <tr>
+                                <th class="p-3">พนักงาน</th>
+                                <th class="p-3">สาขา</th>
+                                <th class="p-3">ประเภท</th>
+                                <th class="p-3">เวลา</th>
+                                <th class="p-3">รูปถ่าย</th>
+                                <th class="p-3">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body" class="divide-y divide-slate-100">
+                            <!-- Data injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="admin-employees-view" class="hidden space-y-4">
+                    <h3 class="font-semibold">เพิ่มรายชื่อพนักงาน</h3>
+                    <p class="text-sm text-slate-500">admin เป็นผู้เพิ่มบัญชีพนักงาน</p>
+                    <form onsubmit="event.preventDefault(); addEmployee(this)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="text-sm">ชื่อผู้ใช้<input id="new-employee-user" required maxlength="100" autocomplete="off" class="block w-full px-3 py-2 border rounded-lg mt-1"></label>
+                        <label class="text-sm">ชื่อพนักงาน<input id="new-employee-name" required maxlength="200" class="block w-full px-3 py-2 border rounded-lg mt-1"></label>
+                        <p class="text-sm text-slate-500">พนักงานทุกบัญชีใช้รหัสผ่านกลางที่กำหนดโดยผู้ดูแลระบบ</p>
+                        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg disabled:opacity-50">เพิ่มพนักงาน</button>
+                    </form>
+                    <p id="employees-status" role="status" class="text-sm text-slate-500"></p>
+                    <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-slate-100 text-slate-600"><tr><th class="p-3">ชื่อผู้ใช้</th><th class="p-3">ชื่อพนักงาน</th><th class="p-3">จัดการ</th></tr></thead><tbody id="employees-table-body" class="divide-y divide-slate-100"></tbody></table></div>
+                </div>
+                <!-- Branches Tab -->
+                <div id="admin-branches-view" class="hidden space-y-4">
+                    <div class="flex flex-wrap gap-2">
+                        <input type="text" id="new-branch-code" placeholder="รหัสสาขา (เช่น 001)" class="px-3 py-2 border rounded-lg text-sm w-1/3">
+                        <input type="text" id="new-branch-name" placeholder="ชื่อสาขา" class="px-3 py-2 border rounded-lg text-sm flex-grow">
+                        <button onclick="addBranch()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">เพิ่มสาขา</button>
+                    </div>
+                    <p id="branches-status" role="status" class="text-sm text-slate-500"></p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-100 text-slate-600">
+                                <tr>
+                                    <th class="p-3">รหัสสาขา</th>
+                                    <th class="p-3">ชื่อสาขา</th>
+                                    <th class="p-3">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="branches-table-body" class="divide-y divide-slate-100">
+                                <!-- Data injected via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 text-xs text-slate-400">
+        Attendance Check System
+    </footer>
+
+    <!-- Script Logic -->
+    <script>
+        // ==========================================
+        // GITHUB PAGES CONFIGURATION
+        // หลังจาก Deploy Backend แล้ว ให้นำ URL ของ Backend
+        // มาใส่แทน https://YOUR-BACKEND-DOMAIN
+        // ตัวอย่าง: https://attendance-api.example.com
+        // ไม่ต้องใส่เครื่องหมาย / ต่อท้าย
+        // ==========================================
+        const API_BASE_URL = 'https://YOUR-BACKEND-DOMAIN';
+
+        let currentUser = null;
+        let mediaStream = null;
+        let facingMode = 'user';
+        let cameraBusy = false;
+        let saving = false;
+        let authHeader = '';
+        let adminTimer = null;
+        let logsBusy = false;
+        let photoURLs = [];
+        let pendingRecord = null;
+
+        async function api(url, options = {}) {
+            // GitHub Pages เป็น Static Hosting จึงต้องเรียก API จาก Backend URL
+            if (!API_BASE_URL || API_BASE_URL.includes('YOUR-BACKEND-DOMAIN')) {
+                throw new Error('ยังไม่ได้ตั้งค่า Backend URL กรุณากำหนด API_BASE_URL ในไฟล์ index.html ก่อนใช้งานระบบ');
+            }
+
+            const baseUrl = API_BASE_URL.replace(/\\/+$/, '');
+            const endpoint = `${baseUrl}${url.startsWith('/') ? url : '/' + url}`;
+            const response = await fetch(endpoint, { ...options, headers: { ...options.headers, Authorization: authHeader }, cache: 'no-store' });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || 'เชื่อมต่อไม่ได้ กรุณาลองใหม่');
+            }
+            return response;
+        }
+
+        async function login() {
+            const user = document.getElementById('login-user').value.trim();
+            const pass = document.getElementById('login-pass').value;
+
+            if (!user || !pass) return alert('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+            authHeader = 'Basic ' + btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify([user, pass]))));
+            try {
+                currentUser = await (await api('/api/me')).json();
+                document.getElementById('login-pass').value = '';
+                enterDashboard();
+            } catch (error) {
+                authHeader = '';
+                alert(error.message);
+            }
+        }
+
+        function enterDashboard() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('user-info').classList.remove('hidden');
+            document.getElementById('display-username').innerText = currentUser.username;
+
+            if(currentUser.role === 'admin') {
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+                loadAdminLogs();
+                adminTimer = setInterval(loadAdminLogs, 15000);
+                loadBranches();
+            } else {
+                document.getElementById('employee-dashboard').classList.remove('hidden');
+                loadBranches();
+                startCamera();
+            }
+        }
+
+        function logout() {
+            clearInterval(adminTimer);
+            photoURLs.forEach(URL.revokeObjectURL);
+            authHeader = "";
+            if(mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+            location.reload();
+        }
+
+        async function startCamera(target = facingMode) {
+            if (cameraBusy) return;
+            cameraBusy = true;
+            const button = document.getElementById('switch-camera');
+            const placeholder = document.getElementById('camera-placeholder');
+            const message = document.getElementById('camera-message');
+            const previous = facingMode;
+            button.disabled = true;
+            placeholder.textContent = 'กำลังเปิดกล้อง...';
+            placeholder.classList.remove('hidden');
+            message.textContent = '';
+            if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
+            const open = mode => navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: mode } } });
+            try {
+                try { mediaStream = await open(target); facingMode = target; }
+                catch (error) {
+                    if (error.name === 'NotAllowedError' || error.name === 'SecurityError') throw error;
+                    try { mediaStream = await open(previous); facingMode = previous; }
+                    catch { mediaStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true }); }
+                    message.textContent = 'ไม่พบกล้องที่เลือก ใช้กล้องที่เปิดได้แทน';
+                }
+                const video = document.getElementById('camera-preview');
+                video.srcObject = mediaStream;
+                await video.play();
+                facingMode = mediaStream.getVideoTracks()[0].getSettings().facingMode || facingMode;
+                video.style.transform = facingMode === 'user' ? 'scaleX(-1)' : '';
+                placeholder.classList.add('hidden');
+            } catch {
+                placeholder.textContent = 'เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้องแล้วลองอีกครั้ง';
+            } finally { cameraBusy = false; button.disabled = false; }
+        }
+
+        function switchCamera() { return startCamera(facingMode === 'user' ? 'environment' : 'user'); }
+
+        async function captureImage() {
+            const video = document.getElementById('camera-preview');
+            if (cameraBusy || !mediaStream || !mediaStream.getVideoTracks().some(track => track.readyState === 'live') || video.readyState < 2 || !video.videoWidth) {
+                throw new Error('กล้องยังไม่พร้อม กรุณาเปิดกล้องก่อนลงเวลา');
+            }
+            const canvas = document.getElementById('snapshot-canvas');
+            const scale = Math.min(1, 960 / video.videoWidth);
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('ถ่ายรูปไม่สำเร็จ กรุณาลองใหม่')), 'image/jpeg', 0.75));
+        }
+
+        async function saveAttendance(type) {
+            if (saving) return;
+            const branch = document.getElementById('branch-code').value.trim();
+            if (!branch) return alert('กรุณากรอกรหัสสาขาก่อนลงเวลา');
+            saving = true;
+            document.getElementById('check-in').disabled = true;
+            document.getElementById('check-out').disabled = true;
+            try {
+                if (!pendingRecord || pendingRecord.branch !== branch || pendingRecord.type !== type) {
+                    pendingRecord = { id: crypto.randomUUID(), branch, type, photo: await captureImage() };
+                }
+                const form = new FormData();
+                form.set('id', pendingRecord.id);
+                form.set('branch', branch);
+                form.set('type', type);
+                form.set('photo', pendingRecord.photo, 'attendance.jpg');
+                const row = await (await api('/api/attendance', { method: 'POST', body: form })).json();
+                pendingRecord = null;
+                const label = type === 'in' ? 'Check In' : 'Check Out';
+                document.getElementById('current-status').textContent = `${label} แล้วที่สาขา ${branch} เวลา ${new Date(row.createdAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`;
+                alert(`บันทึกเวลา ${label} สำเร็จ`);
+            } catch (error) { alert(error.message); }
+            finally {
+                saving = false;
+                document.getElementById('check-in').disabled = false;
+                document.getElementById('check-out').disabled = false;
+            }
+        }
+        function checkIn() { return saveAttendance('in'); }
+        function checkOut() { return saveAttendance('out'); }
+
+        function switchAdminTab(tab) {
+            for (const name of ['logs', 'branches', 'employees']) {
+                document.getElementById(`admin-${name}-view`).classList.toggle('hidden', tab !== name);
+                document.getElementById(`tab-${name}`).className = tab === name ? 'pb-2 px-4 border-b-2 border-indigo-600 text-indigo-600' : 'pb-2 px-4 text-slate-500';
+            }
+            if (tab === 'logs') loadAdminLogs();
+            else if (tab === 'branches') loadBranches();
+            else { loadBranches(); loadEmployees(); }
+        }
+
+        async function loadAdminLogs() {
+            if (logsBusy) return;
+            logsBusy = true;
+            const tbody = document.getElementById('logs-table-body');
+            const status = document.getElementById('logs-status');
+            status.textContent = 'กำลังโหลดรายการ...';
+            try {
+                const rows = await (await api('/api/attendance')).json();
+                photoURLs.forEach(URL.revokeObjectURL);
+                photoURLs = [];
+                tbody.replaceChildren();
+                if (!rows.length) {
+                    const row = tbody.insertRow();
+                    const cell = row.insertCell(); cell.colSpan = 6;
+                    cell.className = 'p-4 text-center text-slate-400';
+                    cell.textContent = 'ยังไม่มีประวัติการลงเวลา';
+                }
+                rows.forEach(log => {
+                    const row = tbody.insertRow();
+                    [log.username, log.branch, log.type === 'in' ? 'เข้างาน' : 'ออกงาน', new Date(log.createdAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })].forEach(value => {
+                        const cell = row.insertCell(); cell.className = 'p-3'; cell.textContent = value;
+                    });
+                    const cell = row.insertCell(); cell.className = 'p-3';
+                    const button = document.createElement('button');
+                    button.textContent = 'ดูรูปถ่าย'; button.className = 'text-indigo-600 underline';
+                    button.onclick = async () => {
+                        button.disabled = true;
+                        try {
+                            const blob = await (await api(`/api/attendance?photo=${encodeURIComponent(log.id)}`)).blob();
+                            const url = URL.createObjectURL(blob); photoURLs.push(url);
+                            const link = document.createElement('a'); link.href = url; link.target = '_blank'; link.rel = 'noopener';
+                            const img = document.createElement('img'); img.src = url; img.alt = 'รูปยืนยันการลงเวลา'; img.className = 'w-24 rounded-lg';
+                            link.append(img); cell.replaceChildren(link);
+                        } catch (error) { alert(error.message); button.disabled = false; }
+                    };
+                    cell.append(button);
+                    const actions = row.insertCell(); actions.className = 'p-3';
+                    actions.append(deleteButton(`/api/attendance?id=${encodeURIComponent(log.id)}`, `ประวัติลงเวลาของ ${log.username}`, loadAdminLogs));
+                });
+                status.textContent = `${rows.length} รายการ • อัปเดตทุก 15 วินาที`;
+            } catch (error) { status.textContent = error.message; }
+            finally { logsBusy = false; }
+        }
+
+        function deleteButton(url, label, reload) {
+            const button = document.createElement('button');
+            button.type = 'button'; button.textContent = 'ลบรายการ';
+            button.className = 'text-rose-600 underline disabled:opacity-50 whitespace-nowrap';
+            button.setAttribute('aria-label', `ลบ${label}`);
+            button.onclick = async () => {
+                if (!confirm(`ยืนยันการลบ${label}? การลบไม่สามารถกู้คืนได้`)) return;
+                button.disabled = true;
+                try {
+                    await api(url, { method: 'DELETE' });
+                    await reload();
+                } catch (error) { alert(error.message); button.disabled = false; }
+            };
+            return button;
+        }
+
+        function renderDirectory(id, rows, columns, empty) {
+            const tbody = document.getElementById(id);
+            tbody.replaceChildren();
+            if (!rows.length) {
+                const cell = tbody.insertRow().insertCell();
+                cell.colSpan = columns.length + 1; cell.className = 'p-4 text-slate-400'; cell.textContent = empty;
+            }
+            rows.forEach(item => {
+                const row = tbody.insertRow();
+                columns.forEach(key => { const cell = row.insertCell(); cell.className = 'p-3'; cell.textContent = item[key]; });
+                const actions = row.insertCell(); actions.className = 'p-3';
+                const employee = id === 'employees-table-body';
+                const resource = employee ? 'employees' : 'branches';
+                const key = employee ? item.username : item.code;
+                actions.append(deleteButton(`/api/${resource}?key=${encodeURIComponent(key)}`, `${employee ? 'พนักงาน' : 'สาขา'} ${key}`, employee ? loadEmployees : loadBranches));
+            });
+        }
+        async function loadBranches() {
+            const status = document.getElementById('branches-status');
+            status.textContent = 'กำลังโหลดสาขา...';
+            try {
+                const rows = await (await api('/api/branches')).json();
+                renderDirectory('branches-table-body', rows, ['code', 'name'], 'ยังไม่มีสาขา กรุณาเพิ่มสาขา');
+                for (const id of ['branch-code']) {
+                    const select = document.getElementById(id), previous = select.value;
+                    select.replaceChildren(new Option(rows.length ? 'เลือกสาขา' : 'ยังไม่มีสาขา กรุณาติดต่อ admin', ''));
+                    rows.forEach(branch => select.add(new Option(`${branch.code} — ${branch.name}`, branch.code)));
+                    select.value = previous;
+                }
+                status.textContent = `${rows.length} สาขา`;
+            } catch (error) {
+                status.textContent = error.message;
+                if (currentUser.role !== 'admin') alert(error.message);
+            }
+        }
+        let branchSaving = false;
+        async function addBranch() {
+            if (branchSaving) return;
+            const code = document.getElementById('new-branch-code').value.trim();
+            const name = document.getElementById('new-branch-name').value.trim();
+            if (!code || !name) return alert('กรุณากรอกรหัสและชื่อสาขาให้ครบ');
+            branchSaving = true;
+            try {
+                await api('/api/branches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, name }) });
+                document.getElementById('new-branch-code').value = '';
+                document.getElementById('new-branch-name').value = '';
+                await loadBranches();
+            } catch (error) { alert(error.message); }
+            finally { branchSaving = false; }
+        }
+        async function loadEmployees() {
+            const status = document.getElementById('employees-status');
+            status.textContent = 'กำลังโหลดพนักงาน...';
+            try {
+                const rows = await (await api('/api/employees')).json();
+                renderDirectory('employees-table-body', rows, ['username', 'name'], 'ยังไม่มีพนักงาน กรุณาเพิ่มพนักงาน');
+                status.textContent = `${rows.length} คน`;
+            } catch (error) { status.textContent = error.message; }
+        }
+        async function addEmployee(form) {
+            const button = form.querySelector('button');
+            if (button.disabled) return;
+            button.disabled = true;
+            try {
+                const body = { username: document.getElementById('new-employee-user').value.trim(), name: document.getElementById('new-employee-name').value.trim() };
+                await api('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                form.reset();
+                await loadEmployees();
+            } catch (error) { alert(error.message); }
+            finally { button.disabled = false; }
+        }
+
+        async function exportCSV() {
+            try {
+                const rows = await (await api('/api/attendance')).json();
+                const quote = value => '"' + String(value).replace(/^[=+@-]/, "' $&").replaceAll('"', '""') + '"';
+                const csv = [['พนักงาน', 'สาขา', 'ประเภท', 'เวลา'], ...rows.map(row => [row.username, row.branch, row.type === 'in' ? 'เข้างาน' : 'ออกงาน', new Date(row.createdAt).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })])].map(row => row.map(quote).join(',')).join('\r\n');
+                const url = URL.createObjectURL(new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' }));
+                const link = document.createElement('a'); link.href = url; link.download = 'attendance.csv'; link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (error) { alert(error.message); }
+        }
+        </script>
+</body>
+</html>
